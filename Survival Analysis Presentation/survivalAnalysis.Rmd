@@ -1,0 +1,230 @@
+---
+title: "Survival Analysis"
+subtitle: "Stat 550 Regression"
+author: "Miles Keppler"
+institute: "Department of Statistical Science, University of Idaho"
+output: beamer_presentation
+fonttheme: "professionalfonts"
+date: \today
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+set.seed(894)
+library(survival)
+```
+## Roadmap
+- What is survival analysis?
+  + Censoring
+- Components of survivor models and data
+  + Exponential survival times
+  + Simulating data
+  + Visualizing the data
+  + Visualizing the theoretical models
+- Estimation and comparison
+  + Kaplan-Meier and non-parametric tests
+  + Parametric regression
+  + Cox regression
+- References
+
+## Survival Analysis
+
+Model the rate of survivors against a dichotommous event. Events are often death, sickness or recovery, but the tools are not limited to biological populations and events. A good example of data we would perform survival analysis on is a 10 year study of individuals who experience a heart attack, to track their time until they experience another. We often use data from randomized clinical trials and cohort studies.
+
+## Censoring
+
+A common issue with survival analysis is that individuals will leave the study for a reason that is not the event occuring, this created right-censored data. The 10 year study can end without a subject experiencing a heart attack, they could die of unrelated causes, or they could drop out of the study for another reason. The data we recieved from them is important though, so we can't just throw it out; we need to use it. We assume that censoring is independent of our events of interest, and typically are uninterested in the rate of censoring once we get into survival analysis. 
+
+## Survival Times
+
+The survival time of an individual is the time until an event occurs. These events are typically of a nature where we would be interested in only the first occurence, such as death or disease onset. The survival times of a group of individuals will have some density function $f(t)$ which represents the probability of an event at exactly time $t$.
+$$ f(t) = \lim_{\Delta t \to 0} \frac{P(t \leq T < t+\Delta t)}{\Delta t}.$$
+For exponentially distributed survival times, this would be the pdf $$ f(t) = \lambda e^{-\lambda x}. $$
+
+## Simulating Data
+
+```{r sim, echo = T}
+n = 30
+lambda = .2
+lifetime = rexp(n, rate = lambda)
+censor = pmin(1 + rexp(n, rate = .1), 10)
+endtime = pmin(lifetime, censor)
+death = censor > lifetime
+data = cbind.data.frame(endtime, death)
+head(data)
+```
+
+## Data Visualized
+```{r sim vizualized}
+par(yaxt = 'n')
+plot(x = data$endtime, y = 1:n, pch = 16 - 12*data$death, ylab = NA, xlab = 'Time', main = 'Survival Times with Censoring')
+segments(x0 = 0, y0 = 1:n, x1 = data$endtime)
+```
+
+## Survival Function
+
+The survival function $S(t)$ is the primary function of interest in survival analysis. It can be directly derived from the cdf $F(t)$ and takes the form
+\begin{align*}
+  S(t) &= P(T \geq t) \\
+    &= 1 - P(T < t) \\
+    &= 1 - F(t).
+\end{align*}
+Then the survival function of the exponential distribution would be 
+\begin{align*}
+  S(t) &= 1 - F(t) \\
+    &= 1 - (1 - e^{-\lambda t}) \\
+    &= e^{-\lambda t}.
+\end{align*}
+
+## Kaplan-Meier Estimator
+
+The Kaplan-Meier estimator  $\hat{S}(t)$ is a non-parametric estimator for the survival function $S(t)$. The estimator is given by $$\hat{S}(t) = \prod_{i : t_i \leq t} \left(1 - \frac{d_i}{n_i}\right),$$ where $d_i$ is the number of events at $t_i$ and $n_i$ is the number of known surviving individuals, not including censored individuals. This statistic is the non-parametric MLE of the survival rate at time $t_i$.
+
+## Survival Curve
+
+```{r model, echo = F}
+data.fit = survfit(Surv(data$endtime,as.numeric(data$death))~1)
+plot(data.fit, ylab = "Surviving Proportion", xlab = "Time", main = "Kaplan-Meier Survival Curve")
+curve(pexp(x, rate = lambda, lower.tail = F), add = T, from = 0, lty = 3)
+legend("topright", legend = c("Predicted Surgvival Rate", "Survival Rate Confidence Interval", "True Survival Rate"), lty = 1:3, bty = 'n')
+```
+
+## Hazard Function
+
+The hazard function $h(t)$ is the relative probability that an indivudual who has survived until time $t$ will succumb immediately. This is essentially a relativee probability of survival given that the individual has survived until time $t$.
+\begin{align*}
+  h(t) &= \lim_{\Delta t \to 0} \frac{P(t \leq T < t+\Delta t | T \geq t)}{\Delta t} \\
+    &= \lim_{\Delta t \to 0} \frac{P(t \leq T < t+\Delta t)}{\Delta t} \frac{1}{P(T \geq t)} \\
+    &= \frac{f(t)}{S(t)}.
+\end{align*}
+The hazard function $h(t)$ is constant for survival times derived from the exponential distribution, making it a particularly simple example. $$h(t) = \frac{\lambda e^{-\lambda x}}{e^{-\lambda x}} = \lambda. $$
+
+## Exponential Survival Times
+
+```{r exp graphs}
+par(mfrow = c(2,2))
+df = 4
+curve(dexp(x, rate = lambda), from = 0, to = 10, main = "Probability Density Function", ylab = "f(t)", xlab = "t")
+curve(pexp(x, rate = lambda), from = 0, to = 10, ylim = c(0, 1), main = "Cumulative Distribution Function", ylab = "F(t)", xlab = "t")
+curve(1-pexp(x, rate = lambda), from = 0, to = 10, ylim = c(0, 1), main = "Survival Function", ylab = "S(t)", xlab = "t")
+curve(dexp(x, rate = lambda)/(1-pexp(x, rate = lambda)),  from = 0, to = 10, main = "Hazard Function", ylab = "h(t)", xlab = "t")
+```
+
+## Chi-Squared Survival Times
+
+```{r chisq graphs}
+par(mfrow = c(2,2))
+df = 4
+curve(dchisq(x, df = df), from = 0, to = 10, main = "Probability Density Function", ylab = "f(t)", xlab = "t")
+curve(pchisq(x, df = df), from = 0, to = 10, ylim = c(0, 1), main = "Cumulative Distribution Function", ylab = "F(t)", xlab = "t")
+curve(1-pchisq(x, df = df), from = 0, to = 10, ylim = c(0, 1), main = "Survival Function", ylab = "S(t)", xlab = "t")
+curve(dchisq(x, df = df)/(1-pchisq(x, df = df)),  from = 0, to = 10, main = "Hazard Function", ylab = "h(t)", xlab = "t")
+```
+
+## Normal Survival Times
+
+```{r normal graphs}
+par(mfrow = c(2,2))
+mean = 5
+curve(dnorm(x, mean = mean), from = 0, to = 10, main = "Probability Density Function", ylab = "f(t)", xlab = "t")
+curve(pnorm(x, mean = mean), from = 0, to = 10, ylim = c(0, 1), main = "Cumulative Distribution Function", ylab = "F(t)", xlab = "t")
+curve(1-pnorm(x, mean = mean), from = 0, to = 10, ylim = c(0, 1), main = "Survival Function", ylab = "S(t)", xlab = "t")
+curve(dnorm(x, mean = mean)/(1-pnorm(x, mean = mean)),  from = 0, to = 10, main = "Hazard Function", ylab = "h(t)", xlab = "t")
+```
+
+## Weibull Survival Times
+
+```{r weibull graphs}
+par(mfrow = c(2,2))
+shape = c(.7, 1, 1.5, 2, 3)
+curve(dweibull(x, shape = shape[1]), from = 0, to = 2, ylim = c(0,2), main = "Probability Density Function", ylab = "f(t)", xlab = "t")
+curve(dweibull(x, shape = shape[2]), from = 0, to = 2, add = T, lty = 2)
+curve(dweibull(x, shape = shape[3]), from = 0, to = 2, add = T, lty = 3)
+curve(dweibull(x, shape = shape[4]), from = 0, to = 2, add = T, lty = 4)
+curve(dweibull(x, shape = shape[5]), from = 0, to = 2, add = T, lty = 5)
+curve(pweibull(x, shape = shape[1]), from = 0, to = 2, ylim = c(0, 1), main = "Cumulative Distribution Function", ylab = "F(t)", xlab = "t")
+curve(pweibull(x, shape = shape[2]), from = 0, to = 2, add = T, lty = 2)
+curve(pweibull(x, shape = shape[3]), from = 0, to = 2, add = T, lty = 3)
+curve(pweibull(x, shape = shape[4]), from = 0, to = 2, add = T, lty = 4)
+curve(pweibull(x, shape = shape[5]), from = 0, to = 2, add = T, lty = 5)
+legend("bottomright", legend = c("Shape = .7", "Shape = 1.0", "Shape = 1.5", "Shape = 2", "Shape = 3"), lty = 1:5)
+curve(1-pweibull(x, shape = shape[1]), from = 0, to = 2, ylim = c(0, 1), main = "Survival Function", ylab = "S(t)", xlab = "t")
+curve(1-pweibull(x, shape = shape[2]), from = 0, to = 2, add = T, lty = 2)
+curve(1-pweibull(x, shape = shape[3]), from = 0, to = 2, add = T, lty = 3)
+curve(1-pweibull(x, shape = shape[4]), from = 0, to = 2, add = T, lty = 4)
+curve(1-pweibull(x, shape = shape[5]), from = 0, to = 2, add = T, lty = 5)
+curve(dweibull(x, shape = shape[1])/(1-pweibull(x, shape = shape[1])),  from = 0, to = 2, ylim = c(0, 2.5), main = "Hazard Function", ylab = "h(t)", xlab = "t")
+curve(dweibull(x, shape = shape[2])/(1-pweibull(x, shape = shape[2])),  add = T, lty = 2)
+curve(dweibull(x, shape = shape[3])/(1-pweibull(x, shape = shape[3])),  add = T, lty = 3)
+curve(dweibull(x, shape = shape[4])/(1-pweibull(x, shape = shape[4])),  add = T, lty = 4)
+curve(dweibull(x, shape = shape[5])/(1-pweibull(x, shape = shape[5])),  add = T, lty = 5)
+```
+
+## Simulating New Data Using Factors
+
+- A larger sample size to get an idea for the curve of the sick individuals.
+```{r sick sim, echo = T}
+n = 70
+lambda.sick = .3
+sick = rbinom(n, 1, .3)
+lifetime.healthy = rexp(n, rate = lambda)
+lifetime.sick = rexp(n, rate = lambda.sick)
+lifetime = ifelse(sick, lifetime.sick, lifetime.healthy)
+censor = pmin(1 + rexp(n, rate = .1), 10)
+endtime = pmin(lifetime, censor)
+death = censor > lifetime
+data = cbind.data.frame(endtime, death, sick)
+data.surv = Surv(data$endtime,data$death)
+```
+
+## Data Including Sickness Factor
+
+```{r sick sim vizualized}
+par(yaxt = 'n')
+plot(x = data$endtime, y = 1:n, pch = 16 - 12*data$death, ylab = NA, xlab = 'Time', main = 'Survival Times with Censoring')
+segments(x0 = 0, y0 = 1:n, x1 = data$endtime, col = ifelse(sick, "Red", "Blue"))
+```
+
+## Survival Curves
+
+```{r sick model, echo = F}
+data.fit = survfit(data.surv~data$sick)
+plot(data.fit, ylab = "Surviving Proportion", xlab = "Time", main = "Kaplan-Meier Survival Curve", col = c("Blue", "Red"))
+curve(pexp(x, rate = lambda, lower.tail = F), add = T, from = 0, lty = 3, col = "Blue")
+curve(pexp(x, rate = lambda.sick, lower.tail = F), add = T, from = 0, lty = 3, col = "Red")
+legend("topright", legend = c("Predicted Surgvival Rate", "True Survival Rate", "Healthy", "Sick"), lty = c(1, 3, 1, 1), bty = 'n', col = c("black", "black", "blue","red"))
+```
+
+## Log-Rank Test for Difference
+
+H_0 : There is no difference between survival curves for sick individuals.
+```{r sick test, echo = T, tidy = T}
+data.test = survdiff(data.surv~data$sick)
+data.test
+```
+
+## Regression
+
+The hazard function is proportional risk, and can never be negative. An appealing idea is to perform a regression on the hazard function $$h_i(t) = h_0(t) e^{\beta_1 x_{i1} + \beta_2 x_{i2} + \ldots + \beta_k x_{ik}}.$$ If there is a good reason to suspect a specific baseline hazard function $h_0(t)$, this model is reasonable and a paremetric regression makes sense. Note, the Weibull distribution can provide many different shapes of hazard function.
+
+## Cox Regression
+
+Also calleed the Proportional Hazards Model, Cox Regression allows for covariates to be considered. We again want to model the log of the hazard function $$\log h_i(t) = \log h_0(t) + \beta_1 x_{i1} + \beta_2 x_{i2} + \ldots + \beta_k x_{ik}.$$ Unfortunately, we would need to specify the right baseline hazard function $h_0(t)$ to get results, so instead we look at ratios
+\begin{align*}
+HR_{ij} &= \frac{h_i(t)}{h_j(t)} \\
+  &= \frac{h_0(t) \exp(x_i \beta)}{h_0(t) \exp(x_j \beta)} \\
+  &= e^{(x_i - x_j)\beta}.
+\end{align*}
+
+## References
+
+- Sainani, Kristin Ph.D. \emph{Introduction to Survival Analysis.} Stanford University.
+- Sullivan, Lisa Ph.D. \emph{Survival Analysis.} Boston University School of Public Health. June 3, 2016
+- Zhou, Mai \emph{Using Software R to do Survival Analysis and Simulation. A tutorial.} Department of Statistics, University of Kentucky.
+- \emph{Survival Analysis.} STHDA. 13 Dec 2016.
+- Wikipedia contributors. \emph{Survival analysis.} Wikipedia, The Free Encyclopedia, 13 May. 2021.
+- Wikipedia contributors. \emph{Proportional hazards model.} Wikipedia, The Free Encyclopedia, 30 Dec. 2020.
+- Wikipedia contributors. \emph{Kaplan–Meier estimator.} Wikipedia, The Free Encyclopedia, 10 May. 2021.
+- Hosmer, David W., and Lemeshow, Stanley \emph{Survival Analysis: Applications to Opthalmic Research.} Department of Public Health, University of Massachusetts and the College of Public Health, The Ohio State University, Jul 23, 2008.
+
+
