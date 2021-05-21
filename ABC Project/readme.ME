@@ -1,0 +1,40 @@
+Part II: Practice
+1. For this problem please refer to the background given in Inference with Approximate
+Bayesian Computation (ABC) by Rejection, (Research Level Example) that
+we have covered in class. We are given the sequence:
+OPIEHAKLESSXFYHBWWEEFLKMRFJAIICNSAIFNDFAJNJVSEUFBEHHRFEQUAQ
+in which our ciphered message (single word) sits. The observed key, after five
+interference events acted on the true key is given in ABCPractice.RData file which
+contains a 26  64 matrix of 1s and 0s where the sum of each row is the score n`
+for each letter of the English alphabet, starting with A and ending with Z.
+This problem is not only about testing a computational statistical method but
+also about model building.
+a. First, we will consider an early stage of model building process and will test
+a very straightforward case with ABC. Assume that for each interference, the
+probabilities are known and quite extreme:
+(1) = 0:01; (2) = 0:99; (3) = 0:99; (4) = 0:97; (5) = 0:02:
+Implement the ABC by rejection to sample the posterior distribution of n` for
+each letter. You can run the program independently for all letters. Note that
+the observed score is a discrete statistic since it takes values on f0; 1;    ; 64g:
+So we can set the (tuning) tolerance parameter  which has to be positive in
+ABC when the statistic is continuous to zero. This means that one error
+source in ABC can be eliminated in this case. However, if the acceptance
+rate is very low because you try to match the observed and simulated values
+of the statistic exactly, then you can increase ; although this will make harder
+to perform the correct inference. Take the posterior mode as the estimate of
+n`: If it is greater than 32 consider the letter as part of the message, else
+discard the letter in the sequence. Report the deciphered message as your
+answer.
+b. As the second stage in model building we will assume (t) are unknown and
+try to sample the joint posterior distribution of n` and (t): First, we want to
+add some but not too much variability in (t) and see if we still can recover the
+message (probably not without any additional methods employed). Assume
+(t) are unknown and assign them a beta prior (natural choice since  2
+(0; 1)) with small variance (you can assume prior independence). Make the
+variance very small at first with mode of the beta distribution situated at the
+given values of  as above, obtain the sample from the joint posterior and
+see if you can still recover the message using estimated n`. If the answer is
+yes, then increase the variance a bit and try again. After some trials report
+a ballpark value of the prior variance when we cannot recover the message
+reasonably (we can easily formalize this by building a systematic setup in
+which variance is incrementally increased, but no need for our purposes).
